@@ -44,7 +44,11 @@ def update_alarm():
 
 def calc_offset():
     now = datetime.datetime.now()
-    zero = now.replace(minute = (now.minute + 1)%60, second = 0, microsecond = 0)
+    h = now.hour
+    m = (now.minute + 1)%60
+    if m == 0:
+        h = h + 1
+    zero = now.replace(hour = h, minute = m, second = 0, microsecond = 0)
     delta = zero - now
 
     interval = delta.total_seconds()
