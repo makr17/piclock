@@ -3,7 +3,7 @@
 import datetime
 import time
 
-from quick2wire.gpio import pins, In, Out, Rising, Falling, Both
+from quick2wire.gpio import pins, In, Out, Rising, Falling, Both, PullDown
 from quick2wire.selector import Selector, Timer
 from Adafruit_7Segment import SevenSegment
 
@@ -62,8 +62,8 @@ def calc_offset():
 update_display()
 
 selector = Selector()
-mode_button = pins.pin(0, direction=In, interrupt=Rising)
-set_button  = pins.pin(1, direction=In, interrupt=Rising)
+mode_button = pins.pin(0, direction=In, interrupt=Rising, pull=PullDown)
+set_button  = pins.pin(1, direction=In, interrupt=Rising, pull=PullDown)
 
 minute_timer = Timer(interval=60, offset=calc_offset())
 minute_timer.start()
@@ -71,8 +71,8 @@ alarm_timer = Timer(offset=1)
 
 
 with selector, mode_button, set_button, minute_timer, alarm_timer:
-    #selector.add(mode_button)
-    #selector.add(set_button)
+    selector.add(mode_button)
+    selector.add(set_button)
     selector.add(minute_timer)
     selector.add(alarm_timer)
 
@@ -93,10 +93,12 @@ with selector, mode_button, set_button, minute_timer, alarm_timer:
             val = mode_button.value
             if val > 0:
                 mode = (mode + 1)%len(modes)
+            print 'mode=%i' % mode
         elif selector.ready == set_button:
             print 'set button press'
             if mode == 0:
                 brightness = (brightness + 1)%16
+                print 'brightness=%i' % brightness
                 update_display()
             elif mode == 1:
                 update_alarm(1)
