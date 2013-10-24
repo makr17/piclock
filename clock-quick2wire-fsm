@@ -2,18 +2,33 @@
 
 import datetime
 import time
+import yweather
 
+from fysom import Fysom
 from quick2wire.gpio import pins, In, Out, Rising, Falling, Both, PullDown
 from quick2wire.selector import Selector, Timer
 from Adafruit_7Segment import SevenSegment
 
 segment = SevenSegment(address=0x70)
 brightness = 5
-modes = ['clock', 'alarm1', 'alarm2']
-mode = 0
+ywclient = yweather.Client()
+loc_id = ywclient.fetch_woeid()
+weather = ywclient.fetch_weather('loc_id', metric=False)
+
+# setup the statemachine
+fsm = Fysom('events': [
+                {'name': 'startup', 'src': 'none', 'dst': 'clock'},
+                {'name': 'mode', 'src': 'clock', 'dst': 'temp'},
+                {'name': 'mode', 'src': 'temp', 'dst': 'alarm1'},
+                {'name': 'mode', 'src': 'alarm1', 'dst': 'alarm2'},
+                {'name': 'mode', 'src': 'alarm2', 'dst': 'clock'},
+                {'name': 'timeout', 'src': '*', 'dst': 'clock'},
+                {'name': 'alarm', 'src': '*', 'dst': 'alarm'},
+                {'name': 'alarm_done', 'src': 'alarm', 'dst': 'clock'},
+])
 
 def update_display():
-    if mode == 0:
+    if fsm.current == 'clock':
         current_time_display()
 
 def current_time_display():
@@ -36,6 +51,34 @@ def current_time_display():
     segment.writeDigit(3, d2)
     segment.writeDigit(4, d3, dot=pm)
 
+def onenter_state_clock(fsm):
+    current_time_display()
+
+def get_temp():
+    global weather
+    weather = ywclient.fetch_weather('loc_id', metric=False)
+
+def onenter_state_temp(fsm):
+    now = datetime.datetime.now()
+    idx = 0
+    if now.hour >= 12:
+        idx = 1
+    temp = int(weather['forecast'][idx]['high'])
+    d1 = temp % 10
+    d2 = (temp % 100 - d1) / 10
+    d3 = temp - (d2 * 10) - d1
+    segment.setColon(0)
+    if d3 == 0:
+        segment.writeDigit(0, d2)
+        segment.writeDigit(1, d1, dot=1)
+        segment.writeDigit(3, 0)
+        segment.writeDigit(4, 'F')
+    else:
+        segment.writeDigit(0, d3)
+        segment.writeDigit(1, d2)
+        segment.writeDigit(3, d1)
+        segment.writeDigit(4, 'F')
+    
 def play_alarm():
     print('play_alarm not yet implemented')
 
@@ -59,8 +102,10 @@ def calc_offset():
     print interval
     return interval
 
-update_display()
+# should transition to clock state and call update_display
+fsm.startup()
 
+# setup the event loop to monitor timers and buttons
 selector = Selector()
 mode_button = pins.pin(0, direction=In, interrupt=Rising, pull=PullDown)
 set_button  = pins.pin(1, direction=In, interrupt=Rising, pull=PullDown)
@@ -68,14 +113,16 @@ set_button  = pins.pin(1, direction=In, interrupt=Rising, pull=PullDown)
 minute_timer = Timer(interval=60, offset=calc_offset())
 minute_timer.start()
 alarm_timer = Timer(offset=1)
+temp_timer = Timer(interval=3600, offset=3600)
+temp_timer.start
 
-
-with selector, mode_button, set_button, minute_timer, alarm_timer:
+with selector, mode_button, set_button, minute_timer, alarm_timer, temp_timer:
     selector.add(mode_button)
     selector.add(set_button)
     selector.add(minute_timer)
     selector.add(alarm_timer)
-
+    selector.add(temp_timer)
+    
     while True:
         selector.wait()
 
@@ -88,19 +135,18 @@ with selector, mode_button, set_button, minute_timer, alarm_timer:
             alarm_timer.wait()
             # TODO: set a timeout for the next alarm in the queue
             play_alarm()
+        elif selector.ready == temp_timer:
+            get_temp()
         elif selector.ready == mode_button:
             print 'mode button press'
-            val = mode_button.value
-            if val > 0:
-                mode = (mode + 1)%len(modes)
-            print 'mode=%i' % mode
+            fsm.mode()
         elif selector.ready == set_button:
             print 'set button press'
-            if mode == 0:
+            if fsm.current == 'clock':
                 brightness = (brightness + 1)%16
                 print 'brightness=%i' % brightness
                 update_display()
-            elif mode == 1:
+            elif fsm.current == 'alarm1':
                 update_alarm(1)
-            elif mode == 2:
+            elif fsm.current == 'alarm2':
                 update_alarm(2)
