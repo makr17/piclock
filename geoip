@@ -1,0 +1,13 @@
+#!/usr/bin/env python
+
+import httplib
+import json
+
+conn = httplib.HTTPConnection('www.telize.com')
+conn.request('GET', '/geoip')
+res = conn.getresponse()
+body = res.read()
+geo = json.loads(body)
+
+loc = geo['city'] + ', ' + geo['region_code']
+print loc
