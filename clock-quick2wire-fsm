@@ -1,0 +1,106 @@
+#!/usr/bin/env python
+
+import datetime
+import time
+
+from quick2wire.gpio import pins, In, Out, Rising, Falling, Both, PullDown
+from quick2wire.selector import Selector, Timer
+from Adafruit_7Segment import SevenSegment
+
+segment = SevenSegment(address=0x70)
+brightness = 5
+modes = ['clock', 'alarm1', 'alarm2']
+mode = 0
+
+def update_display():
+    if mode == 0:
+        current_time_display()
+
+def current_time_display():
+    now = datetime.datetime.now()
+    print now
+    pm = False
+    if now.hour >= 12:
+        pm = True
+    hour = now.hour % 12
+    if hour == 0:
+        hour = 12
+    d0 = int(hour / 10)
+    d1 = hour % 10
+    d2 = int(now.minute / 10)
+    d3 = now.minute % 10
+    segment.disp.setBrightness(brightness)
+    segment.setColon(1)
+    segment.writeDigit(0, d0)
+    segment.writeDigit(1, d1)
+    segment.writeDigit(3, d2)
+    segment.writeDigit(4, d3, dot=pm)
+
+def play_alarm():
+    print('play_alarm not yet implemented')
+
+def update_alarm():
+    print('update_alarm not yet implemented')
+
+def calc_offset():
+    now = datetime.datetime.now()
+    h = now.hour
+    m = (now.minute + 1)%60
+    if m == 0:
+        h = h + 1
+    zero = now.replace(hour = h, minute = m, second = 0, microsecond = 0)
+    delta = zero - now
+
+    interval = delta.total_seconds()
+    if interval < 0:
+        time.sleep(1)
+        interval = calc_offset()
+    print now
+    print interval
+    return interval
+
+update_display()
+
+selector = Selector()
+mode_button = pins.pin(0, direction=In, interrupt=Rising, pull=PullDown)
+set_button  = pins.pin(1, direction=In, interrupt=Rising, pull=PullDown)
+
+minute_timer = Timer(interval=60, offset=calc_offset())
+minute_timer.start()
+alarm_timer = Timer(offset=1)
+
+
+with selector, mode_button, set_button, minute_timer, alarm_timer:
+    selector.add(mode_button)
+    selector.add(set_button)
+    selector.add(minute_timer)
+    selector.add(alarm_timer)
+
+    while True:
+        selector.wait()
+
+        if selector.ready == minute_timer:
+            print 'minute timer tripped'
+            minute_timer.wait()
+            update_display()
+        elif selector.ready == alarm_timer:
+            print 'alarm timer tripped'
+            alarm_timer.wait()
+            # TODO: set a timeout for the next alarm in the queue
+            play_alarm()
+        elif selector.ready == mode_button:
+            print 'mode button press'
+            val = mode_button.value
+            if val > 0:
+                mode = (mode + 1)%len(modes)
+            print 'mode=%i' % mode
+        elif selector.ready == set_button:
+            print 'set button press'
+            if mode == 0:
+                brightness = (brightness + 1)%16
+                print 'brightness=%i' % brightness
+                update_display()
+            elif mode == 1:
+                update_alarm(1)
+            elif mode == 2:
+                update_alarm(2)
