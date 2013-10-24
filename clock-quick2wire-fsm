@@ -32,7 +32,7 @@ fsm = Fysom('events': [
 
 def get_location():
     geo = get_geoip()
-    loc = geo['city'] + ', ' + geo['region_code'] + '  ' + geo['postal_code']
+    loc = geo['city'] + ', ' + geo['region_code']
     print loc
     return loc
 
