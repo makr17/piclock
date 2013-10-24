@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import datetime
+import httplib
+import json
 import time
 import yweather
 
@@ -12,8 +14,9 @@ from Adafruit_7Segment import SevenSegment
 segment = SevenSegment(address=0x70)
 brightness = 5
 ywclient = yweather.Client()
-loc_id = ywclient.fetch_woeid()
-weather = ywclient.fetch_weather('loc_id', metric=False)
+loc = get_location()
+loc_id = ywclient.fetch_woeid(loc)
+weather = ywclient.fetch_weather(loc_id, metric=False)
 
 # setup the statemachine
 fsm = Fysom('events': [
@@ -26,6 +29,20 @@ fsm = Fysom('events': [
                 {'name': 'alarm', 'src': '*', 'dst': 'alarm'},
                 {'name': 'alarm_done', 'src': 'alarm', 'dst': 'clock'},
 ])
+
+def get_location():
+    geo = get_geoip()
+    loc = geo['city'] + ', ' + geo['region_code'] + '  ' + geo['postal_code']
+    print loc
+    return loc
+
+def get_geoip():
+    conn = httplib.HTTPConnection('www.telize.com')
+    conn.request('GET', '/geoip')
+    res = conn.getresponse()
+    body = res.read()
+    geo = json.loads(body)
+    return geo
 
 def update_display():
     if fsm.current == 'clock':
@@ -59,6 +76,7 @@ def get_temp():
 
 def onenter_state_temp(fsm):
     now = datetime.datetime.now()
+    # today's forecast until noon, then tomorrow after
     idx = 0
     if now.hour >= 12:
         idx = 1
