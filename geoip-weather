@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+
+import httplib
+import json
+import yweather
+
+conn = httplib.HTTPConnection('www.telize.com')
+conn.request('GET', '/geoip')
+res = conn.getresponse()
+body = res.read()
+geo = json.loads(body)
+
+loc = geo['city'] + ', ' + geo['region_code']
+print loc
+
+ywclient = yweather.Client()
+loc_id = ywclient.fetch_woeid(loc)
+print loc_id
+
+weather = ywclient.fetch_weather(loc_id, metric=False)
+
+for day in weather['forecast']:
+    print day['day'] + ': ' + day['low'] + '-' + day['high'] + '  ' + day['text']
