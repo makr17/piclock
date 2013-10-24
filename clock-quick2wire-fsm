@@ -33,7 +33,6 @@ def update_display():
 
 def current_time_display():
     now = datetime.datetime.now()
-    print now
     pm = False
     if now.hour >= 12:
         pm = True
@@ -127,7 +126,6 @@ with selector, mode_button, set_button, minute_timer, alarm_timer, temp_timer:
         selector.wait()
 
         if selector.ready == minute_timer:
-            print 'minute timer tripped'
             minute_timer.wait()
             update_display()
         elif selector.ready == alarm_timer:
