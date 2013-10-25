@@ -11,31 +11,6 @@ from quick2wire.gpio import pins, In, Out, Rising, Falling, Both, PullDown
 from quick2wire.selector import Selector, Timer
 from Adafruit_7Segment import SevenSegment
 
-segment = SevenSegment(address=0x70)
-brightness = 5
-ywclient = yweather.Client()
-loc = get_location()
-loc_id = ywclient.fetch_woeid(loc)
-weather = ywclient.fetch_weather(loc_id, metric=False)
-
-# setup the statemachine
-fsm = Fysom('events': [
-                {'name': 'startup', 'src': 'none', 'dst': 'clock'},
-                {'name': 'mode', 'src': 'clock', 'dst': 'temp'},
-                {'name': 'mode', 'src': 'temp', 'dst': 'alarm1'},
-                {'name': 'mode', 'src': 'alarm1', 'dst': 'alarm2'},
-                {'name': 'mode', 'src': 'alarm2', 'dst': 'clock'},
-                {'name': 'timeout', 'src': '*', 'dst': 'clock'},
-                {'name': 'alarm', 'src': '*', 'dst': 'alarm'},
-                {'name': 'alarm_done', 'src': 'alarm', 'dst': 'clock'},
-])
-
-def get_location():
-    geo = get_geoip()
-    loc = geo['city'] + ', ' + geo['region_code']
-    print loc
-    return loc
-
 def get_geoip():
     conn = httplib.HTTPConnection('www.telize.com')
     conn.request('GET', '/geoip')
@@ -44,12 +19,22 @@ def get_geoip():
     geo = json.loads(body)
     return geo
 
-def update_display():
-    if fsm.current == 'clock':
-        current_time_display()
+def get_location():
+    geo = get_geoip()
+    loc = geo['city'] + ', ' + geo['region_code']
+    print loc
+    return loc
+
+segment = SevenSegment(address=0x70)
+brightness = 5
+ywclient = yweather.Client()
+loc = get_location()
+loc_id = ywclient.fetch_woeid(loc)
+weather = ywclient.fetch_weather(loc_id, metric=False)
 
 def current_time_display():
     now = datetime.datetime.now()
+    print now
     pm = False
     if now.hour >= 12:
         pm = True
@@ -62,25 +47,29 @@ def current_time_display():
     d3 = now.minute % 10
     segment.disp.setBrightness(brightness)
     segment.setColon(1)
-    segment.writeDigit(0, d0)
-    segment.writeDigit(1, d1)
-    segment.writeDigit(3, d2)
+    segment.writeDigit(0, d0, dot=0)
+    segment.writeDigit(1, d1, dot=0)
+    segment.writeDigit(3, d2, dot=0)
     segment.writeDigit(4, d3, dot=pm)
 
-def onenter_state_clock(fsm):
+def onclock(fsm):
+    print 'onclock'
     current_time_display()
 
 def get_temp():
     global weather
     weather = ywclient.fetch_weather('loc_id', metric=False)
 
-def onenter_state_temp(fsm):
+def ontemp(fsm):
+    print 'ontemp'
     now = datetime.datetime.now()
     # today's forecast until noon, then tomorrow after
     idx = 0
     if now.hour >= 12:
         idx = 1
+    print 'idx='+str(idx)
     temp = int(weather['forecast'][idx]['high'])
+    print 'temp='+str(temp)
     d1 = temp % 10
     d2 = (temp % 100 - d1) / 10
     d3 = temp - (d2 * 10) - d1
@@ -89,12 +78,15 @@ def onenter_state_temp(fsm):
         segment.writeDigit(0, d2)
         segment.writeDigit(1, d1, dot=1)
         segment.writeDigit(3, 0)
-        segment.writeDigit(4, 'F')
+        segment.writeDigit(4, 'F', dot=0)
     else:
         segment.writeDigit(0, d3)
         segment.writeDigit(1, d2)
         segment.writeDigit(3, d1)
-        segment.writeDigit(4, 'F')
+        segment.writeDigit(4, 'F', dot=0)
+
+def ontimeout(fsm):
+    print 'timeout'
     
 def play_alarm():
     print('play_alarm not yet implemented')
@@ -119,6 +111,30 @@ def calc_offset():
     print interval
     return interval
 
+# setup the statemachine
+fsm = Fysom({'events': [
+                {'name': 'startup', 'src': 'none', 'dst': 'clock'},
+                {'name': 'mode', 'src': 'clock', 'dst': 'temp'},
+                {'name': 'mode', 'src': 'temp', 'dst': 'alarm1'},
+                {'name': 'mode', 'src': 'alarm1', 'dst': 'alarm2'},
+                {'name': 'mode', 'src': 'alarm2', 'dst': 'clock'},
+                {'name': 'timeout', 'src': '*', 'dst': 'clock'},
+                {'name': 'alarm', 'src': '*', 'dst': 'alarm'},
+                {'name': 'alarm_done', 'src': 'alarm', 'dst': 'clock'}
+             ],
+             'callbacks': {
+                 'onclock': onclock,
+                 'ontemp': ontemp,
+                 'ontimeout': ontimeout
+             }
+})
+
+def update_display():
+    if fsm.current == 'clock':
+        current_time_display()
+
+
+
 # should transition to clock state and call update_display
 fsm.startup()
 
@@ -139,7 +155,10 @@ with selector, mode_button, set_button, minute_timer, alarm_timer, temp_timer:
     selector.add(minute_timer)
     selector.add(alarm_timer)
     selector.add(temp_timer)
-    
+
+    # go back to init state
+    fsm.timeout()
+
     while True:
         selector.wait()
 
@@ -155,14 +174,16 @@ with selector, mode_button, set_button, minute_timer, alarm_timer, temp_timer:
             get_temp()
         elif selector.ready == mode_button:
             print 'mode button press'
-            fsm.mode()
+            if mode_button.value == 1:
+                fsm.mode()
         elif selector.ready == set_button:
             print 'set button press'
-            if fsm.current == 'clock':
-                brightness = (brightness + 1)%16
-                print 'brightness=%i' % brightness
-                update_display()
-            elif fsm.current == 'alarm1':
-                update_alarm(1)
-            elif fsm.current == 'alarm2':
-                update_alarm(2)
+            if set_button.value == 1:
+                if fsm.current == 'clock':
+                    brightness = (brightness + 1)%16
+                    print 'brightness=%i' % brightness
+                    update_display()
+                elif fsm.current == 'alarm1':
+                    update_alarm(1)
+                elif fsm.current == 'alarm2':
+                    update_alarm(2)
