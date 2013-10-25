@@ -7,6 +7,7 @@ import time
 import yweather
 
 from fysom import Fysom
+from pytz import timezone
 from quick2wire.gpio import pins, In, Out, Rising, Falling, Both, PullDown
 from quick2wire.selector import Selector, Timer
 from Adafruit_7Segment import SevenSegment
@@ -19,21 +20,27 @@ def get_geoip():
     geo = json.loads(body)
     return geo
 
-def get_location():
-    geo = get_geoip()
+def get_location(geo=get_geoip()):
     loc = geo['city'] + ', ' + geo['region_code']
-    print loc
     return loc
 
 segment = SevenSegment(address=0x70)
 brightness = 5
 ywclient = yweather.Client()
-loc = get_location()
+geo = get_geoip()
+utc = timezone('UTC')
+local = timezone(geo['timezone'])
+loc = get_location(geo)
 loc_id = ywclient.fetch_woeid(loc)
 weather = ywclient.fetch_weather(loc_id, metric=False)
 
+def local_time():
+    now = utc.localize(datetime.datetime.utcnow())
+    localtime = now.astimezone(local)
+    return localtime
+
 def current_time_display():
-    now = datetime.datetime.now()
+    now = local_time()
     print now
     pm = False
     if now.hour >= 12:
@@ -62,7 +69,7 @@ def get_temp():
 
 def ontemp(fsm):
     print 'ontemp'
-    now = datetime.datetime.now()
+    now = local_time()
     # today's forecast until noon, then tomorrow after
     idx = 0
     if now.hour >= 12:
@@ -107,7 +114,7 @@ def update_alarm():
     print('update_alarm not yet implemented')
 
 def calc_offset():
-    now = datetime.datetime.now()
+    now = local_time()
     h = now.hour
     m = (now.minute + 1)%60
     if m == 0:
