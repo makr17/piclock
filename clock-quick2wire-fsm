@@ -41,7 +41,6 @@ def local_time():
 
 def current_time_display():
     now = local_time()
-    print now
     pm = False
     if now.hour >= 12:
         pm = True
@@ -60,7 +59,6 @@ def current_time_display():
     segment.writeDigit(4, d3, dot=pm)
 
 def onclock(fsm):
-    print 'onclock'
     current_time_display()
 
 def get_temp():
@@ -68,15 +66,12 @@ def get_temp():
     weather = ywclient.fetch_weather('loc_id', metric=False)
 
 def ontemp(fsm):
-    print 'ontemp'
     now = local_time()
     # today's forecast until noon, then tomorrow after
     idx = 0
     if now.hour >= 12:
         idx = 1
-    print 'idx='+str(idx)
     temp = int(weather['forecast'][idx]['high'])
-    print 'temp='+str(temp)
     d1 = temp % 10
     d2 = (temp % 100 - d1) / 10
     d3 = temp - (d2 * 10) - d1
@@ -126,8 +121,6 @@ def calc_offset():
     if interval < 0:
         time.sleep(1)
         interval = calc_offset()
-    print now
-    print interval
     return interval
 
 # setup the statemachine
@@ -194,15 +187,12 @@ with selector, mode_button, set_button, minute_timer, alarm_timer, temp_timer:
         elif selector.ready == temp_timer:
             get_temp()
         elif selector.ready == mode_button:
-            print 'mode button press'
             if mode_button.value == 1:
                 fsm.mode()
         elif selector.ready == set_button:
-            print 'set button press'
             if set_button.value == 1:
                 if fsm.current == 'clock':
                     brightness = (brightness + 1)%16
-                    print 'brightness=%i' % brightness
                     update_display()
                 elif fsm.current == 'alarm1':
                     update_alarm(1)
