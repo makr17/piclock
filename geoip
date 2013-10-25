@@ -9,5 +9,7 @@ res = conn.getresponse()
 body = res.read()
 geo = json.loads(body)
 
+print geo
+
 loc = geo['city'] + ', ' + geo['region_code']
 print loc
