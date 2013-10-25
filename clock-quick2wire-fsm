@@ -78,12 +78,12 @@ def ontemp(fsm):
         segment.writeDigit(0, d2)
         segment.writeDigit(1, d1, dot=1)
         segment.writeDigit(3, 0)
-        segment.writeDigit(4, 'F', dot=0)
+        segment.writeDigit(4, 15, dot=0)
     else:
         segment.writeDigit(0, d3)
         segment.writeDigit(1, d2)
         segment.writeDigit(3, d1)
-        segment.writeDigit(4, 'F', dot=0)
+        segment.writeDigit(4, 15, dot=0)
 
 def ontimeout(fsm):
     print 'timeout'
