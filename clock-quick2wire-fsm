@@ -29,8 +29,10 @@ brightness = 5
 ywclient = yweather.Client()
 geo = get_geoip()
 utc = timezone('UTC')
+print 'timezone='+geo['timezone']
 local = timezone(geo['timezone'])
 loc = get_location(geo)
+print loc
 loc_id = ywclient.fetch_woeid(loc)
 weather = ywclient.fetch_weather(loc_id, metric=False)
 
@@ -52,10 +54,13 @@ def current_time_display():
     d2 = int(now.minute / 10)
     d3 = now.minute % 10
     segment.disp.setBrightness(brightness)
+    if d0 == 0:
+        segment.disp.clear()
+    else:
+        segment.writeDigit(0, d0)
     segment.setColon(1)
-    segment.writeDigit(0, d0, dot=0)
-    segment.writeDigit(1, d1, dot=0)
-    segment.writeDigit(3, d2, dot=0)
+    segment.writeDigit(1, d1)
+    segment.writeDigit(3, d2)
     segment.writeDigit(4, d3, dot=pm)
 
 def onclock(fsm):
@@ -75,32 +80,28 @@ def ontemp(fsm):
     d1 = temp % 10
     d2 = (temp % 100 - d1) / 10
     d3 = temp - (d2 * 10) - d1
+    segment.disp.clear()
     segment.setColon(0)
-    if d3 == 0:
-        segment.writeDigit(0, d2)
-        segment.writeDigit(1, d1, dot=1)
-        segment.writeDigit(3, 0)
-        segment.writeDigit(4, 15, dot=0)
-    else:
+    if d3 != 0:
         segment.writeDigit(0, d3)
-        segment.writeDigit(1, d2)
-        segment.writeDigit(3, d1)
-        segment.writeDigit(4, 15, dot=0)
+    segment.writeDigit(1, d2)
+    segment.writeDigit(3, d1)
+    segment.writeDigit(4, 15)
 
 def ontimeout(fsm):
     print 'timeout'
 
 def onalarm1(fsm):
-    segment.writeDigit(0, 5, dot=0)
-    segment.writeDigit(1, 6, dot=0)
-    segment.writeDigit(3, 7, dot=0)
-    segment.writeDigit(4, 8, dot=0)
+    segment.writeDigit(0, 5)
+    segment.writeDigit(1, 6)
+    segment.writeDigit(3, 7)
+    segment.writeDigit(4, 8)
 
 def onalarm2(fsm):
-    segment.writeDigit(0, 9, dot=0)
-    segment.writeDigit(1, 8, dot=0)
-    segment.writeDigit(3, 7, dot=0)
-    segment.writeDigit(4, 6, dot=0)
+    segment.writeDigit(0, 9)
+    segment.writeDigit(1, 8)
+    segment.writeDigit(3, 7)
+    segment.writeDigit(4, 6)
 
 def play_alarm():
     print('play_alarm not yet implemented')
