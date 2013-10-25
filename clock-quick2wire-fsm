@@ -87,7 +87,19 @@ def ontemp(fsm):
 
 def ontimeout(fsm):
     print 'timeout'
-    
+
+def onalarm1(fsm):
+    segment.writeDigit(0, 5, dot=0)
+    segment.writeDigit(1, 6, dot=0)
+    segment.writeDigit(3, 7, dot=0)
+    segment.writeDigit(4, 8, dot=0)
+
+def onalarm2(fsm):
+    segment.writeDigit(0, 9, dot=0)
+    segment.writeDigit(1, 8, dot=0)
+    segment.writeDigit(3, 7, dot=0)
+    segment.writeDigit(4, 6, dot=0)
+
 def play_alarm():
     print('play_alarm not yet implemented')
 
@@ -125,7 +137,9 @@ fsm = Fysom({'events': [
              'callbacks': {
                  'onclock': onclock,
                  'ontemp': ontemp,
-                 'ontimeout': ontimeout
+                 'ontimeout': ontimeout,
+                 'onalarm1': onalarm1,
+                 'onalarm2': onalarm2
              }
 })
 
