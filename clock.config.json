@@ -20,7 +20,7 @@
         },
         {
             "description": "weekdays alarm 2",
-            "active": true,
+            "active": false,
             "hour": "8",
             "minute": "0",
             "sound": "/home/pi/sounds/bigben.ogg",
@@ -36,7 +36,7 @@
         },
         {
             "description": "weekend alarm 1",
-            "active": true,
+            "active": false,
             "hour": "8",
             "minute": "30",
             "sound": "/home/pi/sounds/beach.ogg",
