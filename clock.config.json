@@ -1,0 +1,55 @@
+{
+    "timezone": "America/Los_Angeles",
+    "location": "Pasadena, CA",
+    "alarms": [
+        {
+            "description": "weekdays alarm 1",
+            "active": true,
+            "hour": "6",
+            "minute": "20",
+            "sound": "/home/pi/sounds/beach.ogg",
+            "days": [
+                true,
+                true,
+                true,
+                true,
+                true,
+                false,
+                false
+            ]
+        },
+        {
+            "description": "weekdays alarm 2",
+            "active": true,
+            "hour": "8",
+            "minute": "0",
+            "sound": "/home/pi/sounds/bigben.ogg",
+            "days": [
+                true,
+                true,
+                true,
+                true,
+                true,
+                false,
+                false
+            ]
+        },
+        {
+            "description": "weekend alarm 1",
+            "active": true,
+            "hour": "8",
+            "minute": "30",
+            "sound": "/home/pi/sounds/beach.ogg",
+            "days": [
+                true,
+                true,
+                true,
+                true,
+                true,
+                false,
+                false
+            ]
+        }
+    ]
+}
+
