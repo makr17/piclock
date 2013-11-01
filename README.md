@@ -10,7 +10,8 @@ the idea is to use a raspberry pi to build an alarm clock that is network-connec
 or wired ethernet).  it should sync time via ntp so it is always in sync and doesn't require manual
 intervention.  clock should check geoip for location and timezone on startup.  all time is handled
 in UTC and scaled using timezone fetched via geoip.  so if the clock is moved from los angeles to
-new york it should be able to react accordingly without external intervention.
+new york I should be able to plug it in and it will wake me up at my configured alarm time in the
+local timezone without intervention.
 
 hardware
 --------
