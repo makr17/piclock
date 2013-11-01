@@ -27,3 +27,18 @@ so far:
 - 2 [small buttons](http://www.adafruit.com/products/1505)
 - 1 [stereo amplifier](http://www.adafruit.com/products/1552)
 - 2 [small speakers](http://www.adafruit.com/products/1313)
+
+software dependencies
+---------------------
+
+- datetime (python built-in)
+- httplib (python built-in)
+- json (python built-in)
+- time (python built-in)
+
+- [yweather](https://pypi.python.org/pypi/yweather/0.1) (pip install)
+- [fysom](https://pypi.python.org/pypi/fysom/1.0.9) (pip install)
+- [pytz](https://pypi.python.org/pypi/pytz) (pip install)
+
+- [quick2wire-python-api](https://github.com/quick2wire/quick2wire-python-api)
+- [Adafruit_7Segment](https://github.com/adafruit/Adafruit-Raspberry-Pi-Python-Code)
