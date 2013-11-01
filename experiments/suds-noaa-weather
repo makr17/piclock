@@ -1,0 +1,52 @@
+#!/usr/bin/env python
+
+from datetime import datetime, timedelta
+import httplib
+import json
+import logging
+from suds import WebFault
+from suds.client import Client
+from xml.dom.minidom import parseString
+
+logging.basicConfig(level=logging.INFO)
+
+wsdl = "http://graphical.weather.gov/xml/DWMLgen/wsdl/ndfdXML.wsdl"
+noaa = Client(wsdl)
+
+def geoip():
+    conn = httplib.HTTPConnection('www.telize.com')
+    conn.request('GET', '/geoip')
+    res = conn.getresponse()
+    body = res.read()
+    geo = json.loads(body)
+    return geo
+
+def highTemps(geo):
+    product = noaa.factory.create("ns0:productType")
+    unit = noaa.factory.create("ns0:unitType")
+    format = noaa.factory.create("ns0:formatType")
+    wparams = noaa.factory.create("ns0:weatherParametersType")
+    # request max temps (highs)
+    wparams.maxt = 1
+
+    # pull forecast for today and tomorrow (forward one day)
+    begin = datetime.now()
+    end = begin + timedelta(days=1)
+
+    xml = noaa.service.NDFDgen(
+        geo["latitude"],
+        geo["longitude"],
+        product["glance"],
+        begin,
+        end,
+        unit["e"],
+        wparams
+    )
+    dom = parseString(xml)
+    nodes = dom.getElementsByTagName('temperature')[0].getElementsByTagName('value')
+    temps = [int(x.childNodes[0].nodeValue) for x in nodes]
+    return temps
+
+geo = geoip()
+highs = highTemps(geo)
+print highs
