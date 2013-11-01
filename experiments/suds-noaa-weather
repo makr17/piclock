@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 import httplib
 import json
 import logging
-from suds import WebFault
 from suds.client import Client
 from xml.dom.minidom import parseString
 

@@ -1,16 +1,17 @@
 #!/usr/bin/env python
 
-import datetime
+from Adafruit_7Segment import SevenSegment
+from datetime import datetime, timedelta
+from fysom import Fysom
 import httplib
 import json
-import time
-import yweather
-
-from fysom import Fysom
+import logging
 from pytz import timezone
 from quick2wire.gpio import pins, In, Out, Rising, Falling, Both, PullDown
 from quick2wire.selector import Selector, Timer
-from Adafruit_7Segment import SevenSegment
+from suds.client import Client
+import time
+from xml.dom.minidom import parseString
 
 def get_geoip():
     conn = httplib.HTTPConnection('www.telize.com')
@@ -20,24 +21,48 @@ def get_geoip():
     geo = json.loads(body)
     return geo
 
-def get_location(geo=get_geoip()):
-    loc = geo['city'] + ', ' + geo['region_code']
-    return loc
+def highTemps(geo):
+    product = noaa.factory.create("ns0:productType")
+    unit = noaa.factory.create("ns0:unitType")
+    format = noaa.factory.create("ns0:formatType")
+    wparams = noaa.factory.create("ns0:weatherParametersType")
+    # request max temps (highs)
+    wparams.maxt = 1
+
+    # pull forecast for today and tomorrow (forward one day)
+    begin = datetime.now()
+    end = begin + timedelta(days=1)
+
+    xml = noaa.service.NDFDgen(
+        geo["latitude"],
+        geo["longitude"],
+        product["glance"],
+        begin,
+        end,
+        unit["e"],
+        wparams
+    )
+    dom = parseString(xml)
+    nodes = dom.getElementsByTagName('temperature')[0].getElementsByTagName('value')
+    temps = [int(x.childNodes[0].nodeValue) for x in nodes]
+    return temps
+
+logging.basicConfig(level=logging.INFO)
 
 segment = SevenSegment(address=0x70)
 brightness = 5
-ywclient = yweather.Client()
+wsdl = "http://graphical.weather.gov/xml/DWMLgen/wsdl/ndfdXML.wsdl"
+noaa = Client(wsdl)
 geo = get_geoip()
 utc = timezone('UTC')
 print 'timezone='+geo['timezone']
 local = timezone(geo['timezone'])
-loc = get_location(geo)
-print loc
-loc_id = ywclient.fetch_woeid(loc)
-weather = ywclient.fetch_weather(loc_id, metric=False)
+temps = highTemps(geo)
+print 'lat='+str(geo['latitude'])
+print 'lon='+str(geo['longitude'])
 
 def local_time():
-    now = utc.localize(datetime.datetime.utcnow())
+    now = utc.localize(datetime.utcnow())
     localtime = now.astimezone(local)
     return localtime
 
@@ -67,8 +92,8 @@ def onclock(fsm):
     current_time_display()
 
 def get_temp():
-    global weather
-    weather = ywclient.fetch_weather('loc_id', metric=False)
+    global temps
+    temps = highTemps(geo)
 
 def ontemp(fsm):
     now = local_time()
@@ -76,7 +101,7 @@ def ontemp(fsm):
     idx = 0
     if now.hour >= 12:
         idx = 1
-    temp = int(weather['forecast'][idx]['high'])
+    temp = temps[idx]
     d1 = temp % 10
     d2 = (temp % 100 - d1) / 10
     d3 = temp - (d2 * 10) - d1
