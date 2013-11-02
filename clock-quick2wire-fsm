@@ -21,15 +21,19 @@ def load_config():
     f.close()
     return config
 
+# figure out where we are
 def get_geoip():
     conn = httplib.HTTPConnection('www.telize.com')
     conn.request('GET', '/geoip')
     res = conn.getresponse()
     body = res.read()
     geo = json.loads(body)
+    # if we have enough data, replace the geo key in config with our result
     if geo.get('latitude') and geo.get('longitude'):
         config['geo'] = geo
 
+# find forecast high temps for today and tomorrow
+# using NOAA wsdl api
 def highTemps(geo):
     product = noaa.factory.create("ns0:productType")
     unit = noaa.factory.create("ns0:unitType")
@@ -58,25 +62,40 @@ def highTemps(geo):
 
 logging.basicConfig(level=logging.INFO)
 
+# this is the 4-digit 7-segment display
 segment = SevenSegment(address=0x70)
 brightness = 5
 segment.disp.setBrightness(brightness)
+# wsdl setup for noaa api
 wsdl = "http://graphical.weather.gov/xml/DWMLgen/wsdl/ndfdXML.wsdl"
 noaa = Client(wsdl)
+# configure ourselves
+# first from on-disk config file
 config = load_config()
+# then via geoip
 get_geoip()
+# all times start in utc
 utc = timezone('UTC')
-print 'timezone='+config['geo']['timezone']
+# but get scaled to the local timezone returned from geoip
 local = timezone(config['geo']['timezone'])
+# temps are global, we'll refresh hourly
+# fetch now so we have them to start
 temps = highTemps(config['geo'])
+
+print 'timezone='+config['geo']['timezone']
 print 'lat='+str(config['geo']['latitude'])
 print 'lon='+str(config['geo']['longitude'])
 
+# we'll use these to strip characters out of alarm dst names
+# to figure out which alarm index we're working with
 allchars = string.maketrans('','')
 nodigs = allchars.translate(allchars, string.digits)
 
+# return the current local time
 def local_time():
+    # start with utc
     now = utc.localize(datetime.utcnow())
+    # scale to configured timezone
     localtime = now.astimezone(local)
     return localtime
 
@@ -92,6 +111,7 @@ def digits(length, *numbers):
         digs.append(chunks)
     return digs
 
+# write current time out to the display
 def current_time_display():
     now = local_time()
     pm = False
@@ -113,10 +133,11 @@ def current_time_display():
 def onclock(e):
     current_time_display()
 
-def get_temp(e):
+def get_temp():
     global temps
     temps = highTemps(config['geo'])
 
+# write forecast temp out to display
 def ontemp(e):
     now = local_time()
     # today's forecast until noon, then tomorrow after
@@ -136,6 +157,7 @@ def ontemp(e):
 def ontimeout(e):
     print 'timeout'
 
+# write alarm time out to the display
 def onalarm(e):
     name = e.dst
     idx = int(name.translate(allchars, nodigs))
@@ -153,6 +175,8 @@ def play_alarm():
 def update_alarm():
     print('update_alarm not yet implemented')
 
+# calculate microseconds until zero seconds of the next minute
+# we use this to align the minute timer properly
 def calc_offset():
     now = local_time()
     h = now.hour
@@ -168,6 +192,7 @@ def calc_offset():
         interval = calc_offset()
     return interval
 
+# setup the statemachine
 state_config = {
     'events': [
         {'name': 'startup', 'src': 'none', 'dst': 'clock'},
@@ -181,6 +206,7 @@ state_config = {
         'ontimeout': ontimeout
     }
 }
+# dynamically add states for the configured alarms
 src = 'temp'
 for index, alarm in enumerate(config['alarms']):
     dst = 'alarm'+str(index)
@@ -191,7 +217,7 @@ if state_config['callbacks']['onalarm0']:
     del state_config['events'][2]
     state_config['events'].append({'name': 'mode', 'src': src, 'dst': 'clock'})
 
-# setup the statemachine
+# initialize the statemachine
 fsm = Fysom(state_config)
 
 def update_display():
@@ -203,20 +229,22 @@ fsm.startup()
 
 # setup the event loop to monitor timers and buttons
 selector = Selector()
+# the mode buttons transitions us through mode states in the statemachine
 mode_button = pins.pin(0, direction=In, interrupt=Rising, pull=PullDown)
+# the set button modifies the current mode
 set_button  = pins.pin(1, direction=In, interrupt=Rising, pull=PullDown)
-
+# minute timer trips at zero seconds of every minute to update the clock display
 minute_timer = Timer(interval=60, offset=calc_offset())
 minute_timer.start()
-alarm_timer = Timer(offset=1)
+# temp timer trips every hour to refresh the cached temperature forecast
 temp_timer = Timer(interval=3600, offset=3600)
 temp_timer.start
 
-with selector, mode_button, set_button, minute_timer, alarm_timer, temp_timer:
+# finally, here is the event loop that drives everything
+with selector, mode_button, set_button, minute_timer, temp_timer:
     selector.add(mode_button)
     selector.add(set_button)
     selector.add(minute_timer)
-    selector.add(alarm_timer)
     selector.add(temp_timer)
 
     # go back to init state
@@ -228,11 +256,6 @@ with selector, mode_button, set_button, minute_timer, alarm_timer, temp_timer:
         if selector.ready == minute_timer:
             minute_timer.wait()
             update_display()
-        elif selector.ready == alarm_timer:
-            print 'alarm timer tripped'
-            alarm_timer.wait()
-            # TODO: set a timeout for the next alarm in the queue
-            play_alarm()
         elif selector.ready == temp_timer:
             get_temp()
         elif selector.ready == mode_button:
