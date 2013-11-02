@@ -80,26 +80,35 @@ def local_time():
     localtime = now.astimezone(local)
     return localtime
 
+# chunk a list of numbers into a list of lists of digits
+# since we need to write out to the display one digit at a time
+def digits(length, *numbers):
+    digs = [];
+    for num in numbers:
+        chunks = [int(x) for x in ' '.join(str(num)).split()]
+        # pad with leading zero to meet requested length
+        if len(chunks) < length:
+            chunks.insert(0,0)
+        digs.append(chunks)
+    return digs
+
 def current_time_display():
     now = local_time()
     pm = False
-    if now.hour >= 12:
+    hour = now.hour
+    if hour >= 12:
         pm = True
-    hour = now.hour % 12
+    hour = hour % 12
     if hour == 0:
         hour = 12
-    d0 = int(hour / 10)
-    d1 = hour % 10
-    d2 = int(now.minute / 10)
-    d3 = now.minute % 10
-    if d0 == 0:
-        segment.disp.clear()
-    else:
-        segment.writeDigit(0, d0)
+    digs = digits(2, hour, now.minute)
     segment.setColon(1)
-    segment.writeDigit(1, d1)
-    segment.writeDigit(3, d2)
-    segment.writeDigit(4, d3, dot=pm)
+    segment.disp.clear()
+    if digs[0][0] > 0:
+        segment.writeDigit(0, digs[0][0])
+    segment.writeDigit(1, digs[0][1])
+    segment.writeDigit(3, digs[1][0])
+    segment.writeDigit(4, digs[1][1], dot=pm)
 
 def onclock(e):
     current_time_display()
@@ -115,15 +124,13 @@ def ontemp(e):
     if now.hour >= 12:
         idx = 1
     temp = temps[idx]
-    d1 = temp % 10
-    d2 = (temp % 100 - d1) / 10
-    d3 = temp - (d2 * 10) - d1
+    digs = digits(3, temp)
     segment.disp.clear()
     segment.setColon(0)
-    if d3 != 0:
-        segment.writeDigit(0, d3)
-    segment.writeDigit(1, d2)
-    segment.writeDigit(3, d1)
+    if digs[0][0] > 0:
+        segment.writeDigit(0, digs[0][0])
+    segment.writeDigit(1, digs[0][1])
+    segment.writeDigit(3, digs[0][2])
     segment.writeDigit(4, 15)
 
 def ontimeout(e):
@@ -133,16 +140,11 @@ def onalarm(e):
     name = e.dst
     idx = int(name.translate(allchars, nodigs))
     alarm = config['alarms'][idx]
-    hour = int(alarm['hour'])
-    d0 = int(hour / 10)
-    d1 = hour % 10
-    minute = int(alarm['minute'])
-    d2 = int(minute / 10)
-    d3 = minute % 10
-    segment.writeDigit(0, d0)
-    segment.writeDigit(1, d1)
-    segment.writeDigit(3, d2)
-    segment.writeDigit(4, d3)
+    digs = digits(2, alarm['hour'], alarm['minute'])
+    segment.writeDigit(0, digs[0][0])
+    segment.writeDigit(1, digs[0][1])
+    segment.writeDigit(3, digs[1][0])
+    segment.writeDigit(4, digs[1][1])
     segment.setColon(1)
 
 def play_alarm():
