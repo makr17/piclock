@@ -1,6 +1,10 @@
 {
-    "timezone": "America/Los_Angeles",
-    "location": "Pasadena, CA",
+    "geo": {
+        "timezone": "America/Los_Angeles",
+        "location": "Pasadena, CA",
+        "latitude": 34.1478,
+        "longitude": -118.1445
+    },
     "alarms": [
         {
             "description": "weekdays alarm 1",
