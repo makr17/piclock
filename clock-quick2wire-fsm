@@ -6,12 +6,20 @@ from fysom import Fysom
 import httplib
 import json
 import logging
+import os
 from pytz import timezone
 from quick2wire.gpio import pins, In, Out, Rising, Falling, Both, PullDown
 from quick2wire.selector import Selector, Timer
+import string
 from suds.client import Client
 import time
 from xml.dom.minidom import parseString
+
+def load_config():
+    f = open(os.environ["HOME"]+"/clock.config.json")
+    config = json.load(f)
+    f.close()
+    return config
 
 def get_geoip():
     conn = httplib.HTTPConnection('www.telize.com')
@@ -19,7 +27,8 @@ def get_geoip():
     res = conn.getresponse()
     body = res.read()
     geo = json.loads(body)
-    return geo
+    if geo.get('latitude') and geo.get('longitude'):
+        config['geo'] = geo
 
 def highTemps(geo):
     product = noaa.factory.create("ns0:productType")
@@ -34,8 +43,8 @@ def highTemps(geo):
     end = begin + timedelta(days=1)
 
     xml = noaa.service.NDFDgen(
-        geo["latitude"],
-        geo["longitude"],
+        config["geo"]["latitude"],
+        config["geo"]["longitude"],
         product["glance"],
         begin,
         end,
@@ -53,13 +62,17 @@ segment = SevenSegment(address=0x70)
 brightness = 5
 wsdl = "http://graphical.weather.gov/xml/DWMLgen/wsdl/ndfdXML.wsdl"
 noaa = Client(wsdl)
-geo = get_geoip()
+config = load_config()
+get_geoip()
 utc = timezone('UTC')
-print 'timezone='+geo['timezone']
-local = timezone(geo['timezone'])
-temps = highTemps(geo)
-print 'lat='+str(geo['latitude'])
-print 'lon='+str(geo['longitude'])
+print 'timezone='+config['geo']['timezone']
+local = timezone(config['geo']['timezone'])
+temps = highTemps(config['geo'])
+print 'lat='+str(config['geo']['latitude'])
+print 'lon='+str(config['geo']['longitude'])
+
+allchars = string.maketrans('','')
+nodigs = allchars.translate(allchars, string.digits)
 
 def local_time():
     now = utc.localize(datetime.utcnow())
@@ -88,14 +101,14 @@ def current_time_display():
     segment.writeDigit(3, d2)
     segment.writeDigit(4, d3, dot=pm)
 
-def onclock(fsm):
+def onclock(e):
     current_time_display()
 
-def get_temp():
+def get_temp(e):
     global temps
-    temps = highTemps(geo)
+    temps = highTemps(config['geo'])
 
-def ontemp(fsm):
+def ontemp(e):
     now = local_time()
     # today's forecast until noon, then tomorrow after
     idx = 0
@@ -113,20 +126,24 @@ def ontemp(fsm):
     segment.writeDigit(3, d1)
     segment.writeDigit(4, 15)
 
-def ontimeout(fsm):
+def ontimeout(e):
     print 'timeout'
 
-def onalarm1(fsm):
-    segment.writeDigit(0, 5)
-    segment.writeDigit(1, 6)
-    segment.writeDigit(3, 7)
-    segment.writeDigit(4, 8)
-
-def onalarm2(fsm):
-    segment.writeDigit(0, 9)
-    segment.writeDigit(1, 8)
-    segment.writeDigit(3, 7)
-    segment.writeDigit(4, 6)
+def onalarm(e):
+    name = e.dst
+    idx = int(name.translate(allchars, nodigs))
+    alarm = config['alarms'][idx]
+    hour = int(alarm['hour'])
+    d0 = int(hour / 10)
+    d1 = hour % 10
+    minute = int(alarm['minute'])
+    d2 = int(minute / 10)
+    d3 = minute % 10
+    segment.writeDigit(0, d0)
+    segment.writeDigit(1, d1)
+    segment.writeDigit(3, d2)
+    segment.writeDigit(4, d3)
+    segment.setColon(1)
 
 def play_alarm():
     print('play_alarm not yet implemented')
@@ -149,31 +166,35 @@ def calc_offset():
         interval = calc_offset()
     return interval
 
+state_config = {
+    'events': [
+        {'name': 'startup', 'src': 'none', 'dst': 'clock'},
+        {'name': 'mode', 'src': 'clock', 'dst': 'temp'},
+        {'name': 'mode', 'src': 'temp', 'dst': 'clock'},
+        {'name': 'timeout', 'src': '*', 'dst': 'clock'}
+    ],
+    'callbacks': {
+        'onclock': onclock,
+        'ontemp': ontemp,
+        'ontimeout': ontimeout
+    }
+}
+src = 'temp'
+for index, alarm in enumerate(config['alarms']):
+    dst = 'alarm'+str(index)
+    state_config['events'].append({'name': 'mode', 'src': src, 'dst': dst})
+    state_config['callbacks']['on'+dst] = onalarm
+    src = dst
+if state_config['callbacks']['onalarm0']:
+    del state_config['events'][2]
+    state_config['events'].append({'name': 'mode', 'src': src, 'dst': 'clock'})
+
 # setup the statemachine
-fsm = Fysom({'events': [
-                {'name': 'startup', 'src': 'none', 'dst': 'clock'},
-                {'name': 'mode', 'src': 'clock', 'dst': 'temp'},
-                {'name': 'mode', 'src': 'temp', 'dst': 'alarm1'},
-                {'name': 'mode', 'src': 'alarm1', 'dst': 'alarm2'},
-                {'name': 'mode', 'src': 'alarm2', 'dst': 'clock'},
-                {'name': 'timeout', 'src': '*', 'dst': 'clock'},
-                {'name': 'alarm', 'src': '*', 'dst': 'alarm'},
-                {'name': 'alarm_done', 'src': 'alarm', 'dst': 'clock'}
-             ],
-             'callbacks': {
-                 'onclock': onclock,
-                 'ontemp': ontemp,
-                 'ontimeout': ontimeout,
-                 'onalarm1': onalarm1,
-                 'onalarm2': onalarm2
-             }
-})
+fsm = Fysom(state_config)
 
 def update_display():
     if fsm.current == 'clock':
         current_time_display()
-
-
 
 # should transition to clock state and call update_display
 fsm.startup()
@@ -215,6 +236,7 @@ with selector, mode_button, set_button, minute_timer, alarm_timer, temp_timer:
         elif selector.ready == mode_button:
             if mode_button.value == 1:
                 fsm.mode()
+                time.sleep(0.1)
         elif selector.ready == set_button:
             if set_button.value == 1:
                 if fsm.current == 'clock':
