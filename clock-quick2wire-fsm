@@ -60,6 +60,7 @@ logging.basicConfig(level=logging.INFO)
 
 segment = SevenSegment(address=0x70)
 brightness = 5
+segment.disp.setBrightness(brightness)
 wsdl = "http://graphical.weather.gov/xml/DWMLgen/wsdl/ndfdXML.wsdl"
 noaa = Client(wsdl)
 config = load_config()
@@ -91,7 +92,6 @@ def current_time_display():
     d1 = hour % 10
     d2 = int(now.minute / 10)
     d3 = now.minute % 10
-    segment.disp.setBrightness(brightness)
     if d0 == 0:
         segment.disp.clear()
     else:
@@ -236,11 +236,12 @@ with selector, mode_button, set_button, minute_timer, alarm_timer, temp_timer:
         elif selector.ready == mode_button:
             if mode_button.value == 1:
                 fsm.mode()
-                time.sleep(0.1)
+                time.sleep(0.2)
         elif selector.ready == set_button:
             if set_button.value == 1:
                 if fsm.current == 'clock':
                     brightness = (brightness + 1)%16
+                    segment.disp.setBrightness(brightness)
                     update_display()
                 elif fsm.current == 'alarm1':
                     update_alarm(1)
