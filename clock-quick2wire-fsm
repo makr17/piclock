@@ -122,8 +122,8 @@ def current_time_display():
     if hour == 0:
         hour = 12
     digs = digits(2, hour, now.minute)
-    segment.setColon(1)
     segment.disp.clear()
+    segment.setColon(1)
     if digs[0][0] > 0:
         segment.writeDigit(0, digs[0][0])
     segment.writeDigit(1, digs[0][1])
