@@ -42,9 +42,10 @@ def highTemps(geo):
     # request max temps (highs)
     wparams.maxt = 1
 
-    # pull forecast for today and tomorrow (forward one day)
+    # pull forecast for today and tomorrow
+    # padding with extra days, I've had cases where I only get one forecast value
     begin = datetime.now()
-    end = begin + timedelta(days=1)
+    end = begin + timedelta(days=3)
 
     xml = noaa.service.NDFDgen(
         config["geo"]["latitude"],
@@ -154,9 +155,6 @@ def ontemp(e):
     segment.writeDigit(3, digs[0][2])
     segment.writeDigit(4, 15)
 
-def ontimeout(e):
-    print 'timeout'
-
 # write alarm time out to the display
 def onalarm(e):
     name = e.dst
@@ -202,8 +200,7 @@ state_config = {
     ],
     'callbacks': {
         'onclock': onclock,
-        'ontemp': ontemp,
-        'ontimeout': ontimeout
+        'ontemp': ontemp
     }
 }
 # dynamically add states for the configured alarms
@@ -239,13 +236,16 @@ minute_timer.start()
 # temp timer trips every hour to refresh the cached temperature forecast
 temp_timer = Timer(interval=3600, offset=3600)
 temp_timer.start
+# timeout timer to reset to clock display after period of inactivity
+timeout_timer = Timer(interval=15)
 
 # finally, here is the event loop that drives everything
-with selector, mode_button, set_button, minute_timer, temp_timer:
+with selector, mode_button, set_button, minute_timer, temp_timer, timeout_timer:
     selector.add(mode_button)
     selector.add(set_button)
     selector.add(minute_timer)
     selector.add(temp_timer)
+    selector.add(timeout_timer)
 
     # go back to init state
     fsm.timeout()
@@ -258,11 +258,17 @@ with selector, mode_button, set_button, minute_timer, temp_timer:
             update_display()
         elif selector.ready == temp_timer:
             get_temp()
+        elif selector.ready == timeout_timer:
+            timeout_timer.stop()
+            fsm.timeout()
         elif selector.ready == mode_button:
             if mode_button.value == 1:
+                timeout_timer.stop()
                 fsm.mode()
                 time.sleep(0.2)
+                timeout_timer.start()
         elif selector.ready == set_button:
+            timeout_timer.stop()
             if set_button.value == 1:
                 if fsm.current == 'clock':
                     brightness = (brightness + 1)%16
@@ -272,3 +278,4 @@ with selector, mode_button, set_button, minute_timer, temp_timer:
                     update_alarm(1)
                 elif fsm.current == 'alarm2':
                     update_alarm(2)
+            timeout_timer.start()
