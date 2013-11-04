@@ -43,9 +43,8 @@ def highTemps(geo):
     wparams.maxt = 1
 
     # pull forecast for today and tomorrow
-    # padding with extra days, I've had cases where I only get one forecast value
     begin = datetime.now()
-    end = begin + timedelta(days=3)
+    end = begin + timedelta(days=1)
 
     xml = noaa.service.NDFDgen(
         config["geo"]["latitude"],
@@ -144,7 +143,7 @@ def ontemp(e):
     # today's forecast until noon, then tomorrow after
     idx = 0
     if now.hour >= 12:
-        idx = 1
+        idx = -1
     temp = temps[idx]
     digs = digits(3, temp)
     segment.disp.clear()
