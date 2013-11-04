@@ -3,6 +3,18 @@ piclock
 
 code to drive display and gpio on my alarm clock project
 
+disclaimer
+----------
+
+I should say up front that python is definitely not my first language.  likely not second or third
+either...  but the libraries for my hardware are readily available in python, so I'm using it.  and
+enjoying it honestly more than I thought I would.
+
+while the code _works_, there are probably more ideomatic/pythonic ways to do some of the things I'm
+doing.  if you have a suggestion, fork and submit a pull request.
+
+danke...
+
 quick intro
 -----------
 
