@@ -70,13 +70,18 @@ another timer trips every hour and refreshes the stored weather forecast.  the e
 two buttons currently, a mode button and a set button.
 
 state of the application is managed via a finite state machine, thanks to fysom.  the mode button
-progresses from one state to the next.  right now there are four modes: clock, high temperature
-forecast, alarm 1 and alarm 2.
+progresses from one state to the next.  right now there are two fixed modes: clock and high
+temperature forecast.  we also dynamically append an additional mode for each alarm defined in the
+configuration.  with the current example configuration that is three additional alarm states for a
+total of five.
 
 - clock is local time display
 - high temp forecast is today's high temp until noon, tomorrow's high temp after noon
-- alarm 1 is the first configured alarm
-- alarm 2 is the second configured alarm
+- alarm 0 through alarm N for the configured alarms
+- ...then back to clock 
+
+there is also an inactivity timer running.  the clock will revert to time mode after 15 seconds of
+inactivity in another mode.
 
 the set button is mode-dependent in
 
@@ -86,9 +91,9 @@ the set button is mode-dependent in
 
 things for the future:
 
-- a timeout timer, revert to time display after N seconds of inactivity in other modes
+- ~~a timeout timer, revert to time display after N seconds of inactivity in other modes~~
 - do something real in the alarm states, allow setting/changing of the alarm time
-- make the alarm states dynamic based on config, rather than statically defined
+- ~~make the alarm states dynamic based on config, rather than statically defined~~
 - add a button to toggle alarm on/off, illuminate the button when alarm(s) are on
 - add a button to turn the alarm sound off, illuminate the button when the alarm trips
 - add sound ouput (most likely via pygame.mixer)
