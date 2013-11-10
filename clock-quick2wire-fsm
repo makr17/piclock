@@ -3,62 +3,18 @@
 from Adafruit_7Segment import SevenSegment
 from datetime import datetime, timedelta
 from fysom import Fysom
-import httplib
-import json
 import logging
 import os
 from pytz import timezone
 from quick2wire.gpio import pins, In, Out, Rising, Falling, Both, PullDown
 from quick2wire.selector import Selector, Timer
 import string
-from suds.client import Client
 import time
-from xml.dom.minidom import parseString
 
-def load_config():
-    f = open(os.environ["HOME"]+"/clock.config.json")
-    config = json.load(f)
-    f.close()
-    return config
+import piclock
 
-# figure out where we are
-def get_geoip():
-    conn = httplib.HTTPConnection('www.telize.com')
-    conn.request('GET', '/geoip')
-    res = conn.getresponse()
-    body = res.read()
-    geo = json.loads(body)
-    # if we have enough data, replace the geo key in config with our result
-    if geo.get('latitude') and geo.get('longitude'):
-        config['geo'] = geo
-
-# find forecast high temps for today and tomorrow
-# using NOAA wsdl api
-def highTemps(geo):
-    product = noaa.factory.create("ns0:productType")
-    unit = noaa.factory.create("ns0:unitType")
-    format = noaa.factory.create("ns0:formatType")
-    wparams = noaa.factory.create("ns0:weatherParametersType")
-    # request max temps (highs)
-    wparams.maxt = 1
-
-    # pull forecast for today and tomorrow
-    begin = datetime.now()
-    end = begin + timedelta(days=1)
-
-    xml = noaa.service.NDFDgen(
-        config["geo"]["latitude"],
-        config["geo"]["longitude"],
-        product["glance"],
-        begin,
-        end,
-        unit["e"],
-        wparams
-    )
-    dom = parseString(xml)
-    nodes = dom.getElementsByTagName('temperature')[0].getElementsByTagName('value')
-    temps = [int(x.childNodes[0].nodeValue) for x in nodes]
-    return temps
+config = piclock.Config()
+weather = piclock.Weather(config)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -66,25 +22,14 @@ logging.basicConfig(level=logging.INFO)
 segment = SevenSegment(address=0x70)
 brightness = 5
 segment.disp.setBrightness(brightness)
-# wsdl setup for noaa api
-wsdl = "http://graphical.weather.gov/xml/DWMLgen/wsdl/ndfdXML.wsdl"
-noaa = Client(wsdl)
-# configure ourselves
-# first from on-disk config file
-config = load_config()
-# then via geoip
-get_geoip()
 # all times start in utc
 utc = timezone('UTC')
 # but get scaled to the local timezone returned from geoip
-local = timezone(config['geo']['timezone'])
-# temps are global, we'll refresh hourly
-# fetch now so we have them to start
-temps = highTemps(config['geo'])
+local = timezone(config.timezone)
 
-print 'timezone='+config['geo']['timezone']
-print 'lat='+str(config['geo']['latitude'])
-print 'lon='+str(config['geo']['longitude'])
+print 'timezone='+config.timezone
+print 'lat='+str(config.latitude)
+print 'lon='+str(config.longitude)
 
 # we'll use these to strip characters out of alarm dst names
 # to figure out which alarm index we're working with
@@ -133,10 +78,6 @@ def current_time_display():
 def onclock(e):
     current_time_display()
 
-def get_temp():
-    global temps
-    temps = highTemps(config['geo'])
-
 # write forecast temp out to display
 def ontemp(e):
     now = local_time()
@@ -144,7 +85,7 @@ def ontemp(e):
     idx = 0
     if now.hour >= 12:
         idx = -1
-    temp = temps[idx]
+    temp = weather.highTemps[idx]
     digs = digits(3, temp)
     segment.disp.clear()
     segment.setColon(0)
@@ -158,7 +99,7 @@ def ontemp(e):
 def onalarm(e):
     name = e.dst
     idx = int(name.translate(allchars, nodigs))
-    alarm = config['alarms'][idx]
+    alarm = config.alarms[idx]
     digs = digits(2, alarm['hour'], alarm['minute'])
     segment.writeDigit(0, digs[0][0])
     segment.writeDigit(1, digs[0][1])
@@ -204,12 +145,12 @@ state_config = {
 }
 # dynamically add states for the configured alarms
 src = 'temp'
-for index, alarm in enumerate(config['alarms']):
+for index, alarm in enumerate(config.alarms):
     dst = 'alarm'+str(index)
     state_config['events'].append({'name': 'mode', 'src': src, 'dst': dst})
     state_config['callbacks']['on'+dst] = onalarm
     src = dst
-if state_config['callbacks']['onalarm0']:
+if state_config['callbacks'].get('onalarm0'):
     del state_config['events'][2]
     state_config['events'].append({'name': 'mode', 'src': src, 'dst': 'clock'})
 
@@ -256,7 +197,7 @@ with selector, mode_button, set_button, minute_timer, temp_timer, timeout_timer:
             minute_timer.wait()
             update_display()
         elif selector.ready == temp_timer:
-            get_temp()
+            weather.refresh()
         elif selector.ready == timeout_timer:
             timeout_timer.stop()
             fsm.timeout()
