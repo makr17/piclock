@@ -1,0 +1,25 @@
+#!/usr/bin/env python
+
+from quick2wire.gpio import pins, In, Out, Rising, PullDown
+from quick2wire.selector import Selector, Timer
+import time
+
+button = pins.pin(2, direction=In, interrupt=Rising, pull=PullDown)
+light = pins.pin(4, direction=Out)
+
+selector = Selector()
+
+light_state = 0
+
+with selector, button, light:
+    selector.add(button)
+    
+    while True:
+        selector.wait()
+        if selector.ready == button:
+            if button.value == 1:
+                print 'button press'
+                light_state = (light_state + 1)%2
+                print 'light is now ' + ('on' if light_state else 'off')
+                light.value = light_state
+                time.sleep(0.2)
